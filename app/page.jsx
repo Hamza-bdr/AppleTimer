@@ -1,14 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TimerInput from "./TimerInput";
 import TimerInputs from "./TimerInputs";
 import TimerComponent from "./TimerComponent";
-// import { create } from "zustand";
 
 function useTimerStore() {
   const [timers, setTimers] = useState([]);
   const [timer, setTimer] = useState({});
-  const [intervalId, setIntervalId] = useState(null);
   const [timerInputs, setTimerInputs] = useState({
     heure: "00",
     minute: "01",
@@ -23,25 +21,23 @@ function useTimerStore() {
       isRunning,
     };
   };
-  function startTimer(timer) {
-    setTimer((prev) => ({ ...prev, isRunning: true }));
+  function startTimer(timerId) {
     const id = setInterval(() => {
-      setTimer((prev) => {
-        const newTimeLeft = prev.timeLeft - 1000;
-        if (newTimeLeft <= 0) {
-          clearInterval(id);
-          return {
-            ...prev,
-            timeLeft: 0,
-            isRunning: false,
-          };
-        }
-        return { ...prev, timeLeft: newTimeLeft };
-      });
+      setTimers((prevTimers) =>
+        prevTimers.map((prev) => {
+          if (prev.id === timerId) {
+            const newTimeLeft = Math.max(0, prev.timeLeft - 1000);
+            if (newTimeLeft === 0) {
+              clearInterval(id);
+            }
+            return { ...prev, timeLeft: newTimeLeft };
+          }
+          return prev;
+        })
+      );
     }, 1000);
-    setIntervalId(id);
-    console.log(timer);
   }
+
   function addTimer(e) {
     const duration =
       timerInputs?.seconde * 1000 +
@@ -49,19 +45,28 @@ function useTimerStore() {
       timerInputs?.heure * 3600000;
     const endAt = Date.now() + duration;
     const timeLeft = Math.max(0, endAt - Date.now());
-    const newTimer = createTimer(1, duration, timeLeft, endAt, false);
-    startTimer(newTimer);
-    setTimer(newTimer);
+    const newTimer = createTimer(
+      timers.length + 1,
+      duration,
+      timeLeft,
+      endAt,
+      false
+    );
     setTimers([...timers, newTimer]);
-    // console.log(e, duration, timeLeft, endAt);
-    // console.log(timers, "timerss");
+    startTimer(newTimer.id);
   }
 
-  return { addTimer, createTimer, timerInputs, setTimerInputs, timers, timer };
+  return {
+    addTimer,
+    createTimer,
+    timerInputs,
+    setTimerInputs,
+    timers,
+    startTimer,
+  };
 }
 export default function Home() {
-  const { addTimer, createTimer, timerInputs, setTimerInputs, timers, timer } =
-    useTimerStore();
+  const { addTimer, timerInputs, setTimerInputs, timers } = useTimerStore();
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -79,9 +84,9 @@ export default function Home() {
       </button>
       {timers.length > 0 && (
         <div className="grid grid-cols-3 m-4 p-4">
-          {/* {timers?.map((timer, index) => ( */}
-          {timer && <TimerComponent timer={timer}></TimerComponent>}
-          {/* ))} */}
+          {timers.map((timer, index) => (
+            <TimerComponent key={index} timer={timer}></TimerComponent>
+          ))}
         </div>
       )}
     </main>
