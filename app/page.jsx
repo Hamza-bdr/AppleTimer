@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import TimerInput from "./TimerInput";
 import TimerInputs from "./TimerInputs";
 import TimerComponent from "./TimerComponent";
@@ -7,6 +7,7 @@ import TimerComponent from "./TimerComponent";
 function useTimerStore() {
   const [timers, setTimers] = useState([]);
   const [timer, setTimer] = useState({});
+  const [intervalIds, setIntervalIds] = useState({});
   const [timerInputs, setTimerInputs] = useState({
     heure: "00",
     minute: "01",
@@ -22,13 +23,19 @@ function useTimerStore() {
     };
   };
   function startTimer(timerId) {
+    if (intervalIds[timerId]) {
+      clearInterval(intervalIds[timerId]);
+    }
+
     const id = setInterval(() => {
       setTimers((prevTimers) =>
         prevTimers.map((prev) => {
           if (prev.id === timerId) {
+            prev.isRunning = true;
             const newTimeLeft = Math.max(0, prev.timeLeft - 1000);
             if (newTimeLeft === 0) {
               clearInterval(id);
+              prev.isRunning = false;
             }
             return { ...prev, timeLeft: newTimeLeft };
           }
@@ -36,9 +43,10 @@ function useTimerStore() {
         })
       );
     }, 1000);
+    setIntervalIds((prevIds) => ({ ...prevIds, [timerId]: id }));
   }
 
-  function addTimer(e) {
+  function addTimer() {
     const duration =
       timerInputs?.seconde * 1000 +
       timerInputs?.minute * 60000 +
@@ -52,8 +60,48 @@ function useTimerStore() {
       endAt,
       false
     );
-    setTimers([...timers, newTimer]);
     startTimer(newTimer.id);
+    setTimers([...timers, newTimer]);
+  }
+  // console.log(intervalIds, timers);
+
+  function updatedTimer(timerId, timer) {
+    const updatedTimer = { ...timer, isRunning: !timer.isRunning };
+    if (updatedTimer.isRunning) {
+      startTimer(timerId);
+      console.log(`Starting timer with id: ${timerId}`);
+    } else {
+      console.log(`Clearing interval for timer with id: ${timerId}`);
+      clearInterval(intervalIds[timerId]);
+      console.log(intervalIds);
+    }
+    return updatedTimer;
+  }
+
+  function onPause(timerId) {
+    console.log(`Pausing timer with id: ${timerId}`);
+
+    setTimers((prevTimers) =>
+      prevTimers.map((timer) => {
+        if (timer.id === timerId) {
+          return updatedTimer(timerId, timer);
+        }
+        return timer;
+      })
+    );
+  }
+  function onDelete(timerId) {
+    console.log("delete");
+    clearInterval(intervalIds[timerId]);
+    setTimers((prevTimers) =>
+      prevTimers.filter((timer) => {
+        return timer.id !== timerId;
+      })
+    );
+    setIntervalIds((prev) => {
+      const { [timerId]: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   return {
@@ -63,10 +111,13 @@ function useTimerStore() {
     setTimerInputs,
     timers,
     startTimer,
+    onPause,
+    onDelete,
   };
 }
 export default function Home() {
-  const { addTimer, timerInputs, setTimerInputs, timers } = useTimerStore();
+  const { addTimer, timerInputs, setTimerInputs, timers, onPause, onDelete } =
+    useTimerStore();
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -85,7 +136,12 @@ export default function Home() {
       {timers.length > 0 && (
         <div className="grid grid-cols-3 m-4 p-4">
           {timers.map((timer, index) => (
-            <TimerComponent key={index} timer={timer}></TimerComponent>
+            <TimerComponent
+              key={index}
+              timer={timer}
+              onPause={onPause}
+              onDelete={onDelete}
+            ></TimerComponent>
           ))}
         </div>
       )}
